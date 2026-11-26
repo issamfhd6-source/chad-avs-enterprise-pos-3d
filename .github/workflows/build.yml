@@ -1,0 +1,56 @@
+name: Build CHAD A.V.S POS 3D
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Setup Android SDK 34
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME" -name "sdkmanager" -type f 2>/dev/null | head -n 1)
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-34" "build-tools;34.0.0" "platforms;android-35-ext15"
+
+      - name: Generate Drift files
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload CHAD A.V.S APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHAD-AVS-POS-3D-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+```[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
+
+---
+
+### خطوات التشغيل وتحميل التطبيق بعد الحفظ
+1. اضغط على **Commit changes** لحفظ الملف؛ سيبدأ سير العمل تلقائياً في تبويب **Actions**.
+2. انتظر حتى تنتهي جميع الخطوات دون مقاطعة (قد يستغرق البناء الأول عدة دقائق لتثبيت الحزم وتوليد ملفات Drift وبناء APK)[span_2](start_span)[span_2](end_span).
+3. عند ظهور علامة النجاح الخضراء، ادخل إلى صفحة التشغيل، وانزل إلى قسم **Artifacts** وحمّل **`CHAD-AVS-POS-3D-release`**، ثم فك الضغط وثبّت `app-release.apk` على هاتفك.
+
+هل بدأت تشغيل البناء في تبويب **Actions**، وهل ظهر أي تنبيه أو خطأ في أي خطوة نراجعها معاً؟
