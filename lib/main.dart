@@ -5,7 +5,7 @@ import 'package:chad_avs_pos_3d/services.dart';
 import 'package:chad_avs_pos_3d/theme_3d.dart';
 
 // ============================================================================
-// 1. UPPER-MIDDLE EXCHANGE RATE BANNER (MANAGER-ONLY EDIT)
+// 1. ALL 3D SCREENS (UPPER-MIDDLE EXCHANGE RATE, MANAGER-ONLY EDIT)
 // ============================================================================
 
 class UpperMiddleExchangeRateBanner extends StatelessWidget {
@@ -103,10 +103,6 @@ class UpperMiddleExchangeRateBanner extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// 2. ALL 3D SCREENS (CHAD A.V.S EDITION)
-// ============================================================================
-
 class Inventory3DScreen extends StatefulWidget {
   final AppDatabase db;
   final ExchangeRateController rateController;
@@ -145,8 +141,7 @@ class _Inventory3DScreenState extends State<Inventory3DScreen> {
             final matchText = _search.isEmpty ||
                 p.name.toLowerCase().contains(_search.toLowerCase()) ||
                 (p.barcode ?? '').contains(_search);
-            final matchStock =
-                !_onlyLowStock || p.totalQuantity <= p.minStockAlert;
+            final matchStock = !_onlyLowStock || p.totalQuantity <= p.minStockAlert;
             return matchText && matchStock;
           }).toList();
 
@@ -284,6 +279,279 @@ class _AddProduct3DScreenState extends State<AddProduct3DScreen> {
                 ? null
                 : _barcodeCtrl.text.trim()),
             totalQuantity: Value(qty),
+            costUsd: Value(costUsd),
+            saleUsd: Value(saleUsd),
+            costNewSyp: Value(costUsd * rate),
+            saleNewSyp: Value(saleUsd * rate),
+            costOldSyp: Value(costUsd * rate * ratio),
+            saleOldSyp: Value(saleUsd * rate * ratio),
+            profitMarginPercent: Value(margin),
+            notes: Value(_notesCtrl.text.trim().isEmpty
+                ? null
+                : _notesCtrl.text.trim()),
+            isSynced: const Value(false),
+          ),
+        );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة المادة وتسعيرها بالعملات الثلاث')),
+      );
+      _nameCtrl.clear();
+      _barcodeCtrl.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final costUsd = double.tryParse(_costUsdCtrl.text.trim()) ?? 0;
+    final margin = double.tryParse(_marginCtrl.text.trim()) ?? 0;
+    final saleUsd = costUsd * (1 + (margin / 100));
+    final rate = widget.rateController.usdToNewSyp;
+    final ratio = widget.rateController.oldToNewSypRatio;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: App3DTheme.navyHeader,
+        title: const Text('إضافة مادة وتسعيرها 3D — CHAD A.V.S'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          UpperMiddleExchangeRateBanner(
+            rateController: widget.rateController,
+            pricingService: widget.pricingService,
+            onUpdated: () => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          Interactive3DCard(
+            child: Column(
+              children: [
+                TextField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'اسم المادة'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _barcodeCtrl,
+                  decoration: const InputDecoration(labelText: 'الباركود / QR'),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _qtyCtrl,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(labelText: 'الكمية'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _costUsdCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {}),
+                        decoration:
+                            const InputDecoration(labelText: 'التكلفة (\$)'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _marginCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {}),
+                        decoration:
+                            const InputDecoration(labelText: 'الربح %'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _notesCtrl,
+                  decoration: const InputDecoration(labelText: 'ملاحظات'),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'سعر البيع المقدر: \$${saleUsd.toStringAsFixed(2)} | ${(saleUsd * rate).toStringAsFixed(1)} جديدة | ${(saleUsd * rate * ratio).toStringAsFixed(0)} قديمة',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: App3DTheme.accentGold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _saveProduct,
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text('حفظ المادة'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PosInvoices3DScreen extends StatefulWidget {
+  final AppDatabase db;
+  final ExchangeRateController rateController;
+  final PricingSyncService pricingService;
+  final InvoiceService invoiceService;
+  final PdfExportService pdfService;
+
+  const PosInvoices3DScreen({
+    super.key,
+    required this.db,
+    required this.rateController,
+    required this.pricingService,
+    required this.invoiceService,
+    required this.pdfService,
+  });
+
+  @override
+  State<PosInvoices3DScreen> createState() => _PosInvoices3DScreenState();
+}
+
+class _PosInvoices3DScreenState extends State<PosInvoices3DScreen> {
+  String _invoiceType = 'sale';
+  final _subtotalCtrl = TextEditingController(text: '100');
+  final _discountCtrl = TextEditingController(text: '0');
+  final _paidCtrl = TextEditingController(text: '100');
+
+  @override
+  void dispose() {
+    _subtotalCtrl.dispose();
+    _discountCtrl.dispose();
+    _paidCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitInvoice() async {
+    final sub = double.tryParse(_subtotalCtrl.text.trim()) ?? 0;
+    final disc = double.tryParse(_discountCtrl.text.trim()) ?? 0;
+    final paid = double.tryParse(_paidCtrl.text.trim()) ?? 0;
+    if (sub <= 0) return;
+
+    await widget.invoiceService.createInvoice(
+      invoiceType: _invoiceType,
+      branchId: 1,
+      subtotalUsd: sub,
+      discountUsd: disc,
+      paidUsd: paid,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ الفاتورة وتحديث الأرصدة')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rate = widget.rateController.usdToNewSyp;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: App3DTheme.navyHeader,
+        title: const Text('الفواتير ونقاط البيع 3D — CHAD A.V.S'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          DropdownButton<String>(
+            value: _invoiceType,
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: 'sale', child: Text('فاتورة بيع')),
+              DropdownMenuItem(value: 'purchase', child: Text('فاتورة شراء')),
+              DropdownMenuItem(value: 'saleReturn', child: Text('مرتجع بيع')),
+              DropdownMenuItem(
+                  value: 'purchaseReturn', child: Text('مرتجع شراء')),
+            ],
+            onChanged: (v) {
+              if (v != null) setState(() => _invoiceType = v);
+            },
+          ),
+          const SizedBox(height: 10),
+          UpperMiddleExchangeRateBanner(
+            rateController: widget.rateController,
+            pricingService: widget.pricingService,
+            onUpdated: () => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          Interactive3DCard(
+            child: Column(
+              children: [
+                TextField(
+                  controller: _subtotalCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'المجموع (\$)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _discountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'الخصم (\$)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _paidCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'المدفوع نقداً (\$)'),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _submitInvoice,
+                    icon: const Icon(Icons.receipt_long_rounded),
+                    label: const Text('حفظ الفاتورة'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<List<Invoice>>(
+            stream: widget.db.select(widget.db.invoices).watch(),
+            builder: (context, snap) {
+              final list = snap.data ?? [];
+              return Column(
+                children: list
+                    .map(
+                      (inv) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Interactive3DCard(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${inv.invoiceNumber} (${inv.invoiceType})',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'الصافي: \$${inv.totalUsd.toStringAsFixed(2)} | متبقي: \$${inv.remainingUsd.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 12),
+                                  totalQuantity: Value(qty),
             costUsd: Value(costUsd),
             saleUsd: Value(saleUsd),
             costNewSyp: Value(costUsd * rate),
