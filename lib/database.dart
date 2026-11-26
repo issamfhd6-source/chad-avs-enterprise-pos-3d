@@ -270,13 +270,3 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 }
-```[span_0](start_span)[span_0](end_span)[span_1](start_span)[span_1](end_span)
-
----
-
-### ملاحظة مهمة
-* تم ضبط اسم ملف قاعدة البيانات المحلية على `chad_avs_enterprise_pos_3d.sqlite` وتضمين توقيعك في السجلات الافتراضية للمتجر والفرع والمدير العام[span_2](start_span)[span_2](end_span).
-* تأكد من عدم استيراد `material.dart` في هذا الملف لتجنب أي تعارض بين `Table` في Flutter و`Table` في Drift[span_3](start_span)[span_3](end_span).
-
-بعد حفظ **`lib/database.dart`** بالضغط على **Commit changes**، هل ننتقل إلى **الخطوة الخامسة: إنشاء ملف الخدمات والتقارير `lib/services.dart`**؟
-  
