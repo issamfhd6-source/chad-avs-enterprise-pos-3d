@@ -3,37 +3,35 @@ import 'package:flutter/material.dart';
 import 'package:chad_avs_pos_3d/database.dart';
 
 class App3DTheme {
-  static const Color darkBg = Color(0xFF0A121E);
-  static const Color navyHeader = Color(0xFF0F2942);
-  static const Color cardDark = Color(0xFF132236);
-  static const Color lightBg = Color(0xFFF1F5F9);
-  static const Color cardLight = Color(0xFFFFFFFF);
-  static const Color accentGold = Color(0xFFE59A24);
-  static const Color accentCyan = Color(0xFF18B6D8);
-  static const Color successGreen = Color(0xFF16A34A);
-  static const Color dangerRed = Color(0xFFDC2626);
+  static const darkBg = Color(0xFF0A121E);
+  static const navyHeader = Color(0xFF0F2942);
+  static const cardDark = Color(0xFF132236);
+  static const lightBg = Color(0xFFF1F5F9);
+  static const cardLight = Color(0xFFFFFFFF);
+  static const accentGold = Color(0xFFE59A24);
+  static const accentCyan = Color(0xFF18B6D8);
+  static const successGreen = Color(0xFF16A34A);
+  static const dangerRed = Color(0xFFDC2626);
 
-  static ThemeData buildTheme({required bool isDark}) {
-    return ThemeData(
-      brightness: isDark ? Brightness.dark : Brightness.light,
-      scaffoldBackgroundColor: isDark ? darkBg : lightBg,
-      primaryColor: navyHeader,
-      colorScheme: isDark
-          ? const ColorScheme.dark(
-              primary: accentCyan,
-              secondary: accentGold,
-              surface: cardDark,
-              error: dangerRed,
-            )
-          : const ColorScheme.light(
-              primary: navyHeader,
-              secondary: accentGold,
-              surface: cardLight,
-              error: dangerRed,
-            ),
-      useMaterial3: true,
-    );
-  }
+  static ThemeData buildTheme({required bool isDark}) => ThemeData(
+        brightness: isDark ? Brightness.dark : Brightness.light,
+        scaffoldBackgroundColor: isDark ? darkBg : lightBg,
+        primaryColor: navyHeader,
+        colorScheme: isDark
+            ? const ColorScheme.dark(
+                primary: accentCyan,
+                secondary: accentGold,
+                surface: cardDark,
+                error: dangerRed,
+              )
+            : const ColorScheme.light(
+                primary: navyHeader,
+                secondary: accentGold,
+                surface: cardLight,
+                error: dangerRed,
+              ),
+        useMaterial3: true,
+      );
 }
 
 class Interactive3DCard extends StatefulWidget {
@@ -57,78 +55,59 @@ class Interactive3DCard extends StatefulWidget {
 }
 
 class _Interactive3DCardState extends State<Interactive3DCard> {
-  double _tiltX = 0;
-  double _tiltY = 0;
-  bool _pressed = false;
+  double _rx = 0, _ry = 0;
+  bool _down = false;
 
-  void _updateTilt(Offset localPos, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    final dx = (localPos.dx / size.width) - 0.5;
-    final dy = (localPos.dy / size.height) - 0.5;
+  void _tilt(Offset pos, Size s) {
+    if (s.width <= 0 || s.height <= 0) return;
     setState(() {
-      _tiltY = dx * 0.14;
-      _tiltX = -dy * 0.14;
+      _ry = ((pos.dx / s.width) - 0.5) * 0.14;
+      _rx = -((pos.dy / s.height) - 0.5) * 0.14;
     });
   }
 
-  void _resetTilt() {
-    setState(() {
-      _tiltX = 0;
-      _tiltY = 0;
-      _pressed = false;
-    });
-  }
+  void _reset() => setState(() => _rx = _ry = _down = false);
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor =
-        widget.color ?? (isDark ? App3DTheme.cardDark : App3DTheme.cardLight);
-
     return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(
-          constraints.maxWidth.isFinite ? constraints.maxWidth : 300,
-          constraints.maxHeight.isFinite ? constraints.maxHeight : 120,
+      builder: (context, c) {
+        final s = Size(
+          c.maxWidth.isFinite ? c.maxWidth : 300,
+          c.maxHeight.isFinite ? c.maxHeight : 120,
         );
-
         return GestureDetector(
           onTap: widget.onTap,
           onTapDown: (d) {
-            setState(() => _pressed = true);
-            _updateTilt(d.localPosition, size);
+            setState(() => _down = true);
+            _tilt(d.localPosition, s);
           },
-          onPanUpdate: (d) => _updateTilt(d.localPosition, size),
-          onPanEnd: (_) => _resetTilt(),
-          onTapUp: (_) => _resetTilt(),
-          onTapCancel: _resetTilt,
+          onPanUpdate: (d) => _tilt(d.localPosition, s),
+          onPanEnd: (_) => _reset(),
+          onTapUp: (_) => _reset(),
+          onTapCancel: _reset,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 110),
             transform: Matrix4.identity()
               ..setEntry(3, 2, 0.0012)
-              ..rotateX(_tiltX)
-              ..rotateY(_tiltY)
-              ..scale(_pressed ? 0.985 : 1.0),
+              ..rotateX(_rx)
+              ..rotateY(_ry)
+              ..scale(_down ? 0.985 : 1.0),
             transformAlignment: Alignment.center,
             padding: widget.padding,
             decoration: BoxDecoration(
-              color: baseColor,
+              color: widget.color ??
+                  (isDark ? App3DTheme.cardDark : App3DTheme.cardLight),
               borderRadius: BorderRadius.circular(widget.borderRadius),
               border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.07),
+                color: isDark ? Colors.white12 : Colors.black12,
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.14),
-                  offset: Offset(0, _pressed ? 3 : 8),
-                  blurRadius: _pressed ? 8 : 16,
-                ),
-                BoxShadow(
-                  color: App3DTheme.accentCyan.withValues(alpha: 0.06),
-                  offset: const Offset(0, -2),
-                  blurRadius: 6,
+                  offset: Offset(0, _down ? 3 : 8),
+                  blurRadius: _down ? 8 : 16,
                 ),
               ],
             ),
@@ -142,11 +121,7 @@ class _Interactive3DCardState extends State<Interactive3DCard> {
 
 class Floating3DCalculatorOverlay extends StatefulWidget {
   final ExchangeRateController rateController;
-
-  const Floating3DCalculatorOverlay({
-    super.key,
-    required this.rateController,
-  });
+  const Floating3DCalculatorOverlay({super.key, required this.rateController});
 
   @override
   State<Floating3DCalculatorOverlay> createState() =>
@@ -155,115 +130,89 @@ class Floating3DCalculatorOverlay extends StatefulWidget {
 
 class _Floating3DCalculatorOverlayState
     extends State<Floating3DCalculatorOverlay> {
-  Offset _fabOffset = const Offset(20, 120);
-  bool _isOpen = false;
-  String _expression = '';
-  String _result = '0';
-  int _tabIndex = 0;
-
-  final _unitInputCtrl = TextEditingController(text: '1');
-  String _unitCategory = 'الطول (متر <-> سم)';
+  Offset _pos = const Offset(20, 120);
+  bool _open = false;
+  String _expr = '', _res = '0';
+  int _tab = 0;
+  final _unitCtrl = TextEditingController(text: '1');
+  String _unitType = 'len';
 
   @override
   void dispose() {
-    _unitInputCtrl.dispose();
+    _unitCtrl.dispose();
     super.dispose();
   }
 
-  void _pressKey(String key) {
+  void _key(String k) {
     setState(() {
-      if (key == 'C') {
-        _expression = '';
-        _result = '0';
-        return;
+      if (k == 'C') {
+        _expr = '';
+        _res = '0';
+      } else if (k == '⌫') {
+        if (_expr.isNotEmpty) _expr = _expr.substring(0, _expr.length - 1);
+      } else if (k == '=') {
+        _res = _calc(_expr);
+      } else {
+        _expr += k;
       }
-      if (key == '⌫') {
-        if (_expression.isNotEmpty) {
-          _expression = _expression.substring(0, _expression.length - 1);
-        }
-        return;
-      }
-      if (key == '=') {
-        _result = _evaluateSimple(_expression);
-        return;
-      }
-      _expression += key;
     });
   }
 
-  String _evaluateSimple(String expr) {
-    final cleaned = expr.replaceAll('×', '*').replaceAll('÷', '/').trim();
-    if (cleaned.isEmpty) return '0';
-    final tokens = RegExp(r'(\d+\.?\d*|[+\-*/])')
-        .allMatches(cleaned)
+  String _calc(String s) {
+    final clean = s.replaceAll('×', '*').replaceAll('÷', '/');
+    final parts = RegExp(r'(\d+\.?\d*|[+\-*/])')
+        .allMatches(clean)
         .map((m) => m.group(0)!)
         .toList();
-    if (tokens.isEmpty) return '0';
-
-    double? acc = double.tryParse(tokens.first);
-    if (acc == null) return _expression;
-
+    if (parts.isEmpty) return '0';
+    double? acc = double.tryParse(parts.first);
+    if (acc == null) return _expr;
     String? op;
-    for (int i = 1; i < tokens.length; i++) {
-      final t = tokens[i];
-      if (t == '+' || t == '-' || t == '*' || t == '/') {
+    for (int i = 1; i < parts.length; i++) {
+      final t = parts[i];
+      if ('+-*/'.contains(t)) {
         op = t;
       } else {
-        final numVal = double.tryParse(t);
-        if (numVal != null && op != null) {
-          if (op == '+') acc = acc! + numVal;
-          if (op == '-') acc = acc! - numVal;
-          if (op == '*') acc = acc! * numVal;
-          if (op == '/') acc = numVal == 0 ? 0 : acc! / numVal;
+        final v = double.tryParse(t);
+        if (v != null && op != null) {
+          if (op == '+') acc = acc! + v;
+          if (op == '-') acc = acc! - v;
+          if (op == '*') acc = acc! * v;
+          if (op == '/') acc = v == 0 ? 0 : acc! / v;
         }
       }
     }
     return acc!.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
   }
 
-  String _convertUnit() {
-    final val = double.tryParse(_unitInputCtrl.text.trim()) ?? 0;
-    if (_unitCategory.contains('الطول')) {
-      return '${(val * 100).toStringAsFixed(2)} سم';
-    }
-    if (_unitCategory.contains('الوزن')) {
-      return '${(val * 1000).toStringAsFixed(2)} غرام';
-    }
-    return '${(val * 1000).toStringAsFixed(2)} مل';
+  String _unitOut() {
+    final v = double.tryParse(_unitCtrl.text.trim()) ?? 0;
+    return _unitType == 'len'
+        ? '${(v * 100).toStringAsFixed(2)} سم'
+        : '${(v * 1000).toStringAsFixed(2)} غ / مل';
   }
 
   @override
   Widget build(BuildContext context) {
     final rate = widget.rateController.usdToNewSyp;
     final ratio = widget.rateController.oldToNewSypRatio;
-    final numericVal = double.tryParse(_result) ??
-        double.tryParse(_expression) ??
-        1.0;
+    final val = double.tryParse(_res) ?? double.tryParse(_expr) ?? 1.0;
 
     return Stack(
       children: [
-        if (_isOpen)
+        if (_open)
           Positioned(
             right: 16,
             bottom: 90,
             child: Material(
               color: Colors.transparent,
               child: Container(
-                width: 310,
-                padding: const EdgeInsets.all(14),
+                width: 300,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: App3DTheme.cardDark,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: App3DTheme.accentCyan.withValues(alpha: 0.4),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: App3DTheme.accentCyan),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -271,45 +220,184 @@ class _Floating3DCalculatorOverlayState
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'حاسبة CHAD A.V.S 3D',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                            color: Colors.white,
-                          ),
-                        ),
+                        const Text('حاسبة CHAD A.V.S 3D',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
                         IconButton(
                           icon: const Icon(Icons.close,
                               size: 18, color: Colors.white),
-                          onPressed: () => setState(() => _isOpen = false),
+                          onPressed: () => setState(() => _open = false),
                         ),
                       ],
                     ),
                     Row(
                       children: [
-                        _modeChip('حاسبة', 0),
+                        _chip('حاسبة', 0),
                         const SizedBox(width: 6),
-                        _modeChip('عملات', 1),
+                        _chip('عملات', 1),
                         const SizedBox(width: 6),
-                        _modeChip('وحدات', 2),
+                        _chip('وحدات', 2),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    if (_tabIndex == 0) ...[
+                    const SizedBox(height: 8),
+                    if (_tab == 0) ...[
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: App3DTheme.darkBg,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              _expression.isEmpty ? '0' : _expression,
-                              style: const TextStyle(
+                            Text(_expr.isEmpty ? '0' : _expr,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.white60)),
+                            Text(_res,
+                                style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: App3DTheme.accentGold)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ...const [
+                        ['C', '⌫', '÷', '×'],
+                        ['7', '8', '9', '-'],
+                        ['4', '5', '6', '+'],
+                        ['1', '2', '3', '='],
+                      ].map(
+                        (r) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            children: r
+                                .map((k) => Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 2),
+                                        child: GestureDetector(
+                                          onTap: () => _key(k),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 8),
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: App3DTheme.navyHeader,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(k,
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                          ),
+                                        ),
+                                      ),
+                                    ))
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ] else if (_tab == 1) ...[
+                      Text('دولار: \$${val.toStringAsFixed(2)}',
+                          style: const TextStyle(color: App3DTheme.accentCyan)),
+                      Text('جديدة: ${(val * rate).toStringAsFixed(1)}',
+                          style: const TextStyle(color: App3DTheme.accentGold)),
+                      Text(
+                          'قديمة: ${(val * rate * ratio).toStringAsFixed(0)}',
+                          style: const TextStyle(color: Colors.white70)),
+                    ] else ...[
+                      DropdownButton<String>(
+                        value: _unitType,
+                        isExpanded: true,
+                        dropdownColor: App3DTheme.cardDark,
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'len', child: Text('متر -> سم')),
+                          DropdownMenuItem(
+                              value: 'mass', child: Text('كغ/لتر -> غ/مل')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => _unitType = v);
+                        },
+                      ),
+                      TextField(
+                        controller: _unitCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(_unitOut(),
+                          style: const TextStyle(
+                              color: App3DTheme.accentGold,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          left: _pos.dx,
+          top: _pos.dy,
+          child: GestureDetector(
+            onPanUpdate: (d) {
+              final s = MediaQuery.of(context).size;
+              setState(() {
+                _pos = Offset(
+                  (_pos.dx + d.delta.dx)
+                      .clamp(8.0, math.max(8.0, s.width - 68)),
+                  (_pos.dy + d.delta.dy)
+                      .clamp(60.0, math.max(60.0, s.height - 120)),
+                );
+              });
+            },
+            onTap: () => setState(() => _open = !_open),
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: App3DTheme.accentGold,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.calculate_rounded, color: Colors.black),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _chip(String label, int i) {
+    final active = _tab == i;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tab = i),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? App3DTheme.accentCyan : App3DTheme.darkBg,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: active ? Colors.black : Colors.white)),
+        ),
+      ),
+    );
+  }
+}
+st TextStyle(
                                 fontSize: 12,
                                 color: Colors.white60,
                               ),
