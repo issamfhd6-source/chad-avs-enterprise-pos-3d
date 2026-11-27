@@ -8,10 +8,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:chad_avs_pos_3d/database.dart';
 
-// ============================================================================
-// 1. CORE SERVICES (PRICING, INVOICES, CASHBOX, BRANCHES/USERS, SYNC, PDF)
-// ============================================================================
-
 class PricingSyncService {
   final AppDatabase db;
   final ExchangeRateController rateController;
@@ -231,94 +227,8 @@ class SyncBackupService {
       final unsyncedProds = await (db.select(db.products)
             ..where((t) => t.isSynced.equals(false)))
           .get();
-      count += unsyncedProds.length;
-      await (db.update(db.products)..where((t) => t.isSynced.equals(false)))
-          .write(const ProductsCompanion(isSynced: Value(true)));
-
-      final unsyncedInvs = await (db.select(db.invoices)
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
-      count += unsyncedInvs.length;
-      await (db.update(db.invoices)..where((t) => t.isSynced.equals(false)))
-          .write(const InvoicesCompanion(isSynced: Value(true)));
-
-      final unsyncedCash = await (db.select(db.cashboxTransactions)
-            ..where((t) => t.isSynced.equals(false)))
-          .get();
-      count += unsyncedCash.length;
-      await (db.update(db.cashboxTransactions)
-            ..where((t) => t.isSynced.equals(false)))
-          .write(const CashboxTransactionsCompanion(isSynced: Value(true)));
-    });
-    return count;
-  }
-
-  Future<void> rewindServerCursor({
-    required Duration lookback,
-    required int maxRecordsPerTable,
-  }) async {
-    final targetDate = DateTime.now().subtract(lookback);
-    await db.update(db.systemSettings).write(
-          SystemSettingsCompanion(serverSyncCursor: Value(targetDate)),
-        );
-    final limitVal = maxRecordsPerTable.clamp(1, 150);
-    await (db.select(db.invoices)..limit(limitVal)).get();
-  }
-}
-
-class CloudBackupSnapshot {
-  final String backupId;
-  final String phone;
-  final DateTime createdAt;
-  final int productsCount;
-  final int invoicesCount;
-
-  const CloudBackupSnapshot({
-    required this.backupId,
-    required this.phone,
-    required this.createdAt,
-    required this.productsCount,
-    required this.invoicesCount,
-  });
-}
-
-class BackupPrintService {
-  final AppDatabase db;
-  final ExchangeRateController rateController;
-
-  BackupPrintService({
-    required this.db,
-    required this.rateController,
-  });
-
-  final Map<String, List>> _phoneBackupsStore = {};
-
-  Future<CloudBackupSnapshot> createBackupByPhone(String phone) async {
-    final normalizedPhone = phone.trim();
-    final products = await db.select(db.products).get();
-    final invoices = await db.select(db.invoices).get();
-    final accounts = await db.select(db.accounts).get();
-    final cashRows = await db.select(db.cashboxTransactions).get();
-
-    final backupId = 'CHAD-AVS-BKP-${DateTime.now().millisecondsSinceEpoch}';
-    final payload = {
-      'signature': 'CHAD A.V.S',
-      'backupId': backupId,
-      'phone': normalizedPhone,
-      'createdAt': DateTime.now().toIso8601String(),
-      'usdToNewSypRate': rateController.usdToNewSyp,
-      'products': products.map((e) => e.toJson()).toList(),
-      'invoices': invoices.map((e) => e.toJson()).toList(),
-      'accounts': accounts.map((e) => e.toJson()).toList(),
-      'cashbox': cashRows.map((e) => e.toJson()).toList(),
-    };
-
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, '$backupId.json'));
-    await file.writeAsString(jsonEncode(payload));
-
-    final list = _phoneBackupsStore.putIfAbsent(normalizedPhone, () => []);
-    list.insert(0, payload);
+      count += unsyncedProds
+, payload);
 
     return CloudBackupSnapshot(
       backupId: backupId,
