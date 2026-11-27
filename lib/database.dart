@@ -7,10 +7,6 @@ import 'package:path_provider/path_provider.dart';
 
 part 'database.g.dart';
 
-// ============================================================================
-// 1. EXCHANGE RATE CONTROLLER & ROLE PERMISSIONS GUARD (CHAD A.V.S)
-// ============================================================================
-
 enum UserRole {
   manager,
   branchManager,
@@ -109,10 +105,6 @@ class RolePermissionsGuard {
   bool get canOnlyManagerEditExchangeRate =>
       rateController.currentRole == UserRole.manager;
 }
-
-// ============================================================================
-// 2. DRIFT LOCAL DATABASE SCHEMA (CHAD A.V.S)
-// ============================================================================
 
 class Branches extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -257,6 +249,20 @@ class AppDatabase extends _$AppDatabase {
     }
 
     final existingUsers = await select(systemUsers).get();
+    if (existingUsers.isEmpty) {
+      await into(systemUsers).insert(
+        SystemUsersCompanion.insert(
+          fullName: 'المدير العام - CHAD A.V.S',
+          phone: '+963900000001',
+          role: const Value('manager'),
+          branchId: const Value(1),
+          isSynced: const Value(true),
+        ),
+      );
+    }
+  }
+}
+ existingUsers = await select(systemUsers).get();
     if (existingUsers.isEmpty) {
       await into(systemUsers).insert(
         SystemUsersCompanion.insert(
