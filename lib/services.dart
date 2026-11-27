@@ -11,17 +11,11 @@ import 'package:chad_avs_pos_3d/database.dart';
 class PricingSyncService {
   final AppDatabase db;
   final ExchangeRateController rateController;
-
-  PricingSyncService({
-    required this.db,
-    required this.rateController,
-  });
+  PricingSyncService({required this.db, required this.rateController});
 
   Future<bool> updateExchangeRateAndRepriceAllProducts(double newUsdRate) async {
     if (!rateController.canEditExchangeRate) return false;
-    final accepted = rateController.updateUsdRate(newUsdRate);
-    if (!accepted) return false;
-
+    if (!rateController.updateUsdRate(newUsdRate)) return false;
     final ratio = rateController.oldToNewSypRatio;
 
     await db.transaction(() async {
@@ -31,27 +25,22 @@ class PricingSyncService {
               oldToNewSypRatio: Value(ratio),
             ),
           );
-
-      final allProducts = await db.select(db.products).get();
-      for (final prod in allProducts) {
+      final all = await db.select(db.products).get();
+      for (final prod in all) {
         final costNew = prod.costUsd * newUsdRate;
         final saleNew = prod.saleUsd * newUsdRate;
-        final costOld = costNew * ratio;
-        final saleOld = saleNew * ratio;
-
         await (db.update(db.products)..where((t) => t.id.equals(prod.id))).write(
           ProductsCompanion(
             costNewSyp: Value(costNew),
             saleNewSyp: Value(saleNew),
-            costOldSyp: Value(costOld),
-            saleOldSyp: Value(saleOld),
+            costOldSyp: Value(costNew * ratio),
+            saleOldSyp: Value(saleNew * ratio),
             isSynced: const Value(false),
             updatedAt: Value(DateTime.now()),
           ),
         );
       }
     });
-
     return true;
   }
 }
@@ -59,11 +48,7 @@ class PricingSyncService {
 class InvoiceService {
   final AppDatabase db;
   final ExchangeRateController rateController;
-
-  InvoiceService({
-    required this.db,
-    required this.rateController,
-  });
+  InvoiceService({required this.db, required this.rateController});
 
   Future<int> createInvoice({
     required String invoiceType,
@@ -74,40 +59,39 @@ class InvoiceService {
     required double paidUsd,
     String? notes,
   }) async {
-    final netTotal = (subtotalUsd - discountUsd).clamp(0.0, double.infinity);
-    final remaining = (netTotal - paidUsd).clamp(0.0, double.infinity);
+    final net = (subtotalUsd - discountUsd).clamp(0.0, double.infinity);
+    final rem = (net - paidUsd).clamp(0.0, double.infinity);
     final rate = rateController.usdToNewSyp;
     final ratio = rateController.oldToNewSypRatio;
-    final invNumber = 'INV-${DateTime.now().millisecondsSinceEpoch}';
+    final invNo = 'INV-${DateTime.now().millisecondsSinceEpoch}';
 
     return db.transaction(() async {
       final id = await db.into(db.invoices).insert(
             InvoicesCompanion.insert(
-              invoiceNumber: invNumber,
+              invoiceNumber: invNo,
               invoiceType: invoiceType,
               branchId: Value(branchId),
               accountId: Value(accountId),
               subtotalUsd: Value(subtotalUsd),
               discountUsd: Value(discountUsd),
-              totalUsd: Value(netTotal),
+              totalUsd: Value(net),
               paidUsd: Value(paidUsd),
-              remainingUsd: Value(remaining),
+              remainingUsd: Value(rem),
               exchangeRateUsed: Value(rate),
               notes: Value(notes),
               isSynced: const Value(false),
             ),
           );
 
-      if (accountId != null && remaining > 0) {
-        final accList = await (db.select(db.accounts)
+      if (accountId != null && rem > 0) {
+        final accs = await (db.select(db.accounts)
               ..where((t) => t.id.equals(accountId)))
             .get();
-        if (accList.isNotEmpty) {
-          final acc = accList.first;
-          final nextBal = acc.balanceUsd + remaining;
+        if (accs.isNotEmpty) {
+          final acc = accs.first;
           await (db.update(db.accounts)..where((t) => t.id.equals(acc.id))).write(
             AccountsCompanion(
-              balanceUsd: Value(nextBal),
+              balanceUsd: Value(acc.balanceUsd + rem),
               isSynced: const Value(false),
               updatedAt: Value(DateTime.now()),
             ),
@@ -116,14 +100,13 @@ class InvoiceService {
       }
 
       if (paidUsd > 0) {
-        final entryType =
-            (invoiceType == 'sale' || invoiceType == 'purchaseReturn')
-                ? 'deposit'
-                : 'withdraw';
+        final type = (invoiceType == 'sale' || invoiceType == 'purchaseReturn')
+            ? 'deposit'
+            : 'withdraw';
         await db.into(db.cashboxTransactions).insert(
               CashboxTransactionsCompanion.insert(
-                entryType: entryType,
-                category: Value('فاتورة $invNumber'),
+                entryType: type,
+                category: Value('فاتورة $invNo'),
                 amountUsd: Value(paidUsd),
                 amountNewSyp: Value(paidUsd * rate),
                 amountOldSyp: Value(paidUsd * rate * ratio),
@@ -132,7 +115,6 @@ class InvoiceService {
               ),
             );
       }
-
       return id;
     });
   }
@@ -141,11 +123,7 @@ class InvoiceService {
 class CashboxService {
   final AppDatabase db;
   final ExchangeRateController rateController;
-
-  CashboxService({
-    required this.db,
-    required this.rateController,
-  });
+  CashboxService({required this.db, required this.rateController});
 
   Future<void> recordCashEntry({
     required String entryType,
@@ -155,7 +133,6 @@ class CashboxService {
   }) async {
     final rate = rateController.usdToNewSyp;
     final ratio = rateController.oldToNewSypRatio;
-
     await db.into(db.cashboxTransactions).insert(
           CashboxTransactionsCompanion.insert(
             entryType: entryType,
@@ -173,11 +150,7 @@ class CashboxService {
 class BranchesUsersService {
   final AppDatabase db;
   final ExchangeRateController rateController;
-
-  BranchesUsersService({
-    required this.db,
-    required this.rateController,
-  });
+  BranchesUsersService({required this.db, required this.rateController});
 
   Future<void> addBranch({
     required String name,
@@ -215,58 +188,124 @@ class BranchesUsersService {
 class SyncBackupService {
   final AppDatabase db;
   final ExchangeRateController rateController;
-
-  SyncBackupService({
-    required this.db,
-    required this.rateController,
-  });
+  SyncBackupService({required this.db, required this.rateController});
 
   Future<int> pushPendingRecords() async {
     int count = 0;
     await db.transaction(() async {
-      final unsyncedProds = await (db.select(db.products)
+      final pList = await (db.select(db.products)
             ..where((t) => t.isSynced.equals(false)))
           .get();
-      count += unsyncedProds
-, payload);
+      count += pList.length;
+      await (db.update(db.products)..where((t) => t.isSynced.equals(false)))
+          .write(const ProductsCompanion(isSynced: Value(true)));
 
+      final iList = await (db.select(db.invoices)
+            ..where((t) => t.isSynced.equals(false)))
+          .get();
+      count += iList.length;
+      await (db.update(db.invoices)..where((t) => t.isSynced.equals(false)))
+          .write(const InvoicesCompanion(isSynced: Value(true)));
+
+      final cList = await (db.select(db.cashboxTransactions)
+            ..where((t) => t.isSynced.equals(false)))
+          .get();
+      count += cList.length;
+      await (db.update(db.cashboxTransactions)
+            ..where((t) => t.isSynced.equals(false)))
+          .write(const CashboxTransactionsCompanion(isSynced: Value(true)));
+    });
+    return count;
+  }
+
+  Future<void> rewindServerCursor({
+    required Duration lookback,
+    required int maxRecordsPerTable,
+  }) async {
+    await db.update(db.systemSettings).write(
+          SystemSettingsCompanion(
+            serverSyncCursor: Value(DateTime.now().subtract(lookback)),
+          ),
+        );
+    await (db.select(db.invoices)
+          ..limit(maxRecordsPerTable.clamp(1, 150)))
+        .get();
+  }
+}
+
+class CloudBackupSnapshot {
+  final String backupId;
+  final String phone;
+  final DateTime createdAt;
+  final int productsCount;
+  final int invoicesCount;
+  const CloudBackupSnapshot({
+    required this.backupId,
+    required this.phone,
+    required this.createdAt,
+    required this.productsCount,
+    required this.invoicesCount,
+  });
+}
+
+class BackupPrintService {
+  final AppDatabase db;
+  final ExchangeRateController rateController;
+  BackupPrintService({required this.db, required this.rateController});
+
+  final Map<String, List>> _store = {};
+
+  Future<CloudBackupSnapshot> createBackupByPhone(String phone) async {
+    final key = phone.trim();
+    final prods = await db.select(db.products).get();
+    final invs = await db.select(db.invoices).get();
+    final id = 'CHAD-AVS-BKP-${DateTime.now().millisecondsSinceEpoch}';
+    final data = {
+      'backupId': id,
+      'phone': key,
+      'createdAt': DateTime.now().toIso8601String(),
+      'usdToNewSypRate': rateController.usdToNewSyp,
+      'products': prods.map((e) => e.toJson()).toList(),
+      'invoices': invs.map((e) => e.toJson()).toList(),
+    };
+    final dir = await getApplicationDocumentsDirectory();
+    await File(p.join(dir.path, '$id.json')).writeAsString(jsonEncode(data));
+    _store.putIfAbsent(key, () => []).insert(0, data);
     return CloudBackupSnapshot(
-      backupId: backupId,
-      phone: normalizedPhone,
+      backupId: id,
+      phone: key,
       createdAt: DateTime.now(),
-      productsCount: products.length,
-      invoicesCount: invoices.length,
+      productsCount: prods.length,
+      invoicesCount: invs.length,
     );
   }
 
   List<CloudBackupSnapshot> listBackupsForPhone(String phone) {
-    final entries = _phoneBackupsStore[phone.trim()] ?? const [];
-    return entries.map((item) {
-      return CloudBackupSnapshot(
-        backupId: item['backupId'] as String? ?? '',
-        phone: item['phone'] as String? ?? phone,
-        createdAt: DateTime.tryParse(item['createdAt'] as String? ?? '') ??
-            DateTime.now(),
-        productsCount: (item['products'] as List?)?.length ?? 0,
-        invoicesCount: (item['invoices'] as List?)?.length ?? 0,
-      );
-    }).toList();
+    return (_store[phone.trim()] ?? const [])
+        .map((e) => CloudBackupSnapshot(
+              backupId: e['backupId'] as String? ?? '',
+              phone: e['phone'] as String? ?? phone,
+              createdAt: DateTime.tryParse(e['createdAt'] as String? ?? '') ??
+                  DateTime.now(),
+              productsCount: (e['products'] as List?)?.length ?? 0,
+              invoicesCount: (e['invoices'] as List?)?.length ?? 0,
+            ))
+        .toList();
   }
 
   bool deleteBackup(String phone, String backupId) {
-    final entries = _phoneBackupsStore[phone.trim()];
-    if (entries == null) return false;
-    final before = entries.length;
-    entries.removeWhere((e) => e['backupId'] == backupId);
-    return entries.length < before;
+    final list = _store[phone.trim()];
+    if (list == null) return false;
+    final before = list.length;
+    list.removeWhere((e) => e['backupId'] == backupId);
+    return list.length < before;
   }
 
   Future<bool> restoreBackup(String phone, String backupId) async {
-    final entries = _phoneBackupsStore[phone.trim()];
-    if (entries == null) return false;
-    final match = entries.where((e) => e['backupId'] == backupId).toList();
+    final list = _store[phone.trim()];
+    if (list == null) return false;
+    final match = list.where((e) => e['backupId'] == backupId).toList();
     if (match.isEmpty) return false;
-
     final rate = (match.first['usdToNewSypRate'] as num?)?.toDouble();
     if (rate != null && rate > 0) {
       rateController.updateUsdRate(rate);
@@ -287,21 +326,13 @@ class SyncBackupService {
     final rate = rateController.usdToNewSyp;
     final ratio = rateController.oldToNewSypRatio;
     final newSyp = totalUsd * rate;
-    final oldSyp = newSyp * ratio;
-
     return [
-      '==============================',
-      'CHAD A.V.S — $storeName',
-      'سند فاتورة: $invoiceNumber ($invoiceType)',
-      'التاريخ: ${DateTime.now().toString().substring(0, 16)}',
-      '------------------------------',
-      'الإجمالي: \$${totalUsd.toStringAsFixed(2)}',
-      'بالليرة الجديدة: ${newSyp.toStringAsFixed(1)}',
-      'بالليرة القديمة: ${oldSyp.toStringAsFixed(0)}',
-      'المدفوع: \$${paidUsd.toStringAsFixed(2)}',
-      'سعر الصرف: 1\$ = ${rate.toStringAsFixed(2)} جديدة',
-      'توقيع النظام: CHAD A.V.S',
-      '==============================',
+      'CHAD A.V.S - $storeName',
+      'Invoice: $invoiceNumber ($invoiceType)',
+      'Total: \$${totalUsd.toStringAsFixed(2)}',
+      'New SYP: ${newSyp.toStringAsFixed(1)}',
+      'Old SYP: ${(newSyp * ratio).toStringAsFixed(0)}',
+      'Paid: \$${paidUsd.toStringAsFixed(2)}',
     ].join('\n');
   }
 }
@@ -321,77 +352,26 @@ class PdfExportService {
     String? summaryFooter,
   }) async {
     final doc = pw.Document();
-
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         build: (context) => [
-          pw.Container(
-            padding: const pw.EdgeInsets.only(bottom: 10),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(bottom: pw.BorderSide(width: 1.5)),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'CHAD A.V.S — $storeName',
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  documentTitle,
-                  style: pw.TextStyle(
-                    fontSize: 13,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  '$exchangeRateSummary | ${DateTime.now().toString().substring(0, 16)}',
-                  style: const pw.TextStyle(fontSize: 9.5),
-                ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 12),
+          pw.Text('CHAD A.V.S - $storeName'),
+          pw.Text(documentTitle),
+          pw.Text(exchangeRateSummary),
+          pw.SizedBox(height: 10),
           pw.TableHelper.fromTextArray(
             headers: headers,
             data: rows.map((r) => r.cells).toList(),
-            headerStyle: pw.TextStyle(
-              fontWeight: pw.FontWeight.bold,
-              fontSize: 10,
-            ),
-            cellStyle: const pw.TextStyle(fontSize: 9.5),
           ),
           if (summaryFooter != null) ...[
-            pw.SizedBox(height: 12),
-            pw.Text(
-              summaryFooter,
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 10.5,
-              ),
-            ),
+            pw.SizedBox(height: 10),
+            pw.Text(summaryFooter),
           ],
-          pw.SizedBox(height: 14),
-          pw.Text(
-            'توقيع الإصدار: CHAD A.V.S',
-            style: const pw.TextStyle(fontSize: 9),
-          ),
         ],
       ),
     );
-
     await Printing.layoutPdf(onLayout: (_) async => doc.save());
   }
 }
-```[span_1](start_span)[span_1](end_span)
-
----
-
-بعد حفظ **`lib/services.dart`** بالضغط على **Commit changes**، هل ننتقل إلى **الخطوة السادسة: إنشاء الملف الرئيسي والشاشات `lib/main.dart`**؟
