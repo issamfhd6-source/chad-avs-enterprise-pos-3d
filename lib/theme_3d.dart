@@ -2,10 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:chad_avs_pos_3d/database.dart';
 
-// ============================================================================
-// 1. 3D THEME & INTERACTIVE CARDS (CHAD A.V.S EDITION)
-// ============================================================================
-
 class App3DTheme {
   static const Color darkBg = Color(0xFF0A121E);
   static const Color navyHeader = Color(0xFF0F2942);
@@ -144,10 +140,6 @@ class _Interactive3DCardState extends State<Interactive3DCard> {
   }
 }
 
-// ============================================================================
-// 2. FLOATING 3D CALCULATOR OVERLAY (CHAD A.V.S)
-// ============================================================================
-
 class Floating3DCalculatorOverlay extends StatefulWidget {
   final ExchangeRateController rateController;
 
@@ -167,7 +159,7 @@ class _Floating3DCalculatorOverlayState
   bool _isOpen = false;
   String _expression = '';
   String _result = '0';
-  int _tabIndex = 0; // 0: calc | 1: currency | 2: units
+  int _tabIndex = 0;
 
   final _unitInputCtrl = TextEditingController(text: '1');
   String _unitCategory = 'الطول (متر <-> سم)';
@@ -309,6 +301,209 @@ class _Floating3DCalculatorOverlayState
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: App3DTheme.darkBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _expression.isEmpty ? '0' : _expression,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white60,
+                              ),
+                            ),
+                            Text(
+                              _result,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: App3DTheme.accentGold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...const [
+                        ['C', '⌫', '÷', '×'],
+                        ['7', '8', '9', '-'],
+                        ['4', '5', '6', '+'],
+                        ['1', '2', '3', '='],
+                        ['0', '.', '10%', '20%'],
+                      ].map(
+                        (row) => Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            children: row
+                                .map(
+                                  (k) => Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 2),
+                                      child: GestureDetector(
+                                        onTap: () => _pressKey(k),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 9),
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: App3DTheme.navyHeader,
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            k,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ] else if (_tabIndex == 1) ...[
+                      Text(
+                        'القيمة الأساسية: ${numericVal.toStringAsFixed(2)}',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'بالدولار: \$${numericVal.toStringAsFixed(2)}',
+                        style: const TextStyle(color: App3DTheme.accentCyan),
+                      ),
+                      Text(
+                        'ليرة جديدة: ${(numericVal * rate).toStringAsFixed(1)}',
+                        style: const TextStyle(color: App3DTheme.accentGold),
+                      ),
+                      Text(
+                        'ليرة قديمة: ${(numericVal * rate * ratio).toStringAsFixed(0)}',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ] else ...[
+                      DropdownButton<String>(
+                        value: _unitCategory,
+                        isExpanded: true,
+                        dropdownColor: App3DTheme.cardDark,
+                        style: const TextStyle(color: Colors.white),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'الطول (متر <-> سم)',
+                            child: Text('الطول (متر <-> سم)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'الوزن (كغ <-> غ)',
+                            child: Text('الوزن (كغ <-> غ)'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'الحجم (لتر <-> مل)',
+                            child: Text('الحجم (لتر <-> مل)'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => _unitCategory = v);
+                        },
+                      ),
+                      TextField(
+                        controller: _unitInputCtrl,
+                        style: const TextStyle(color: Colors.white),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'الناتج: ${_convertUnit()}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: App3DTheme.accentGold,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          left: _fabOffset.dx,
+          top: _fabOffset.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              final size = MediaQuery.of(context).size;
+              setState(() {
+                _fabOffset = Offset(
+                  (_fabOffset.dx + details.delta.dx)
+                      .clamp(8.0, math.max(8.0, size.width - 68)),
+                  (_fabOffset.dy + details.delta.dy)
+                      .clamp(60.0, math.max(60.0, size.height - 120)),
+                );
+              });
+            },
+            onTap: () => setState(() => _isOpen = !_isOpen),
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [App3DTheme.accentGold, Color(0xFFC27803)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: App3DTheme.accentGold.withValues(alpha: 0.45),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.calculate_rounded,
+                color: Colors.black,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modeChip(String title, int idx) {
+    final active = _tabIndex == idx;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tabIndex = idx),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? App3DTheme.accentCyan : App3DTheme.darkBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
+              color: active ? Colors.black : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+                      color: App3DTheme.darkBg,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
